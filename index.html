@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>பால் மேலாண்மை அமைப்பு</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <div class="container">
@@ -92,33 +92,46 @@
             </div>
         </section>
 
-        <!-- Billing View -->
-        <section id="billing-view" class="view">
-            <div class="section-header">
-                <h2>மாதாந்திர பில்லிங்</h2>
-            </div>
+       <!-- Billing View -->
+<section id="billing-view" class="view">
+    <div class="section-header">
+        <h2>மாதாந்திர பில்லிங்</h2>
+    </div>
+    
+    <div class="billing-section">
+        <div class="billing-filters">
             
-            <div class="billing-section">
-                <div class="billing-filters">
-                    <label>
-                        <span>வாடிக்கையாளர்:</span>
-                        <select id="billing-customer-select" required>
-                            <option value="">வாடிக்கையாளர் தேர்ந்தெடு</option>
-                        </select>
-                    </label>
-                    <label>
-                        <span>மாதம்:</span>
-                        <input type="month" id="billing-month" required>
-                    </label>
-                    <button class="btn btn-primary" id="generate-bill-btn">பில் உருவாக்க</button>
-                </div>
-                
-                <div class="bill-preview" id="bill-preview" style="display: none;">
-                    <div class="bill-content" id="bill-content"></div>
-                    <button class="btn btn-success" id="download-bill-pdf">பில் PDF பதிவிறக்க</button>
-                </div>
-            </div>
-        </section>
+            <!-- Customer चयन -->
+            <label>
+                <span>வாடிக்கையாளர்:</span>
+                <select id="billing-customer-select" required>
+                    <option value="">வாடிக்கையாளர் தேர்ந்தெடு</option>
+                </select>
+            </label>
+
+            <!-- From Date -->
+            <label>
+                <span>தொடக்க தேதி (From):</span>
+                <input type="date" id="billing-from-date" required>
+            </label>
+
+            <!-- To Date -->
+            <label>
+                <span>முடிவு தேதி (To):</span>
+                <input type="date" id="billing-to-date" required>
+            </label>
+
+            <!-- Generate Button -->
+            <button class="btn btn-primary" id="generate-bill-btn">பில் உருவாக்க</button>
+        </div>
+        
+        <!-- Bill Preview -->
+        <div class="bill-preview" id="bill-preview" style="display: none;">
+            <div class="bill-content" id="bill-content"></div>
+            <button class="btn btn-success" id="download-bill-pdf">பில் PDF பதிவிறக்க</button>
+        </div>
+    </div>
+</section>
 
         <!-- Settings View -->
         <section id="settings-view" class="view">
@@ -160,7 +173,7 @@
         // Fallback if CDN fails - app will still work without PDF
         window.jspdf = window.jspdf || null;
     </script>
-    <script src="app.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
 
