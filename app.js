@@ -43,36 +43,16 @@ function updateStorageStatus(available) {
     }
 }
 
-// Initialize Application
-function startApp() {
-    // Check storage first
-    checkStorageAvailability();
-    
-    // Wait a bit for mobile browsers to fully load
-    setTimeout(function() {
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function() {
-                setTimeout(initializeApp, 200);
-            });
-        } else {
-            // DOM already loaded
-            setTimeout(initializeApp, 200);
-        }
-    }, 100);
-}
-
-// Start the app
-startApp();
 
 // Initialize all components
 function initializeApp() {
     try {
         // Verify storage is still available
         if (!storageAvailable) {
-        if (!checkStorageAvailability()) {
+			if (!checkStorageAvailability()) {
             alert('சேமிப்பு கிடைக்கவில்லை. தரவு சேமிக்க முடியாது. உங்கள் உலாவி அமைப்புகளை சரிபார்க்கவும் அல்லது வேறு உலாவியைப் பயன்படுத்தவும்.');
             return;
-        }
+			}
         }
         
         setupNavigation();
@@ -639,93 +619,122 @@ function downloadReportPDF() {
         alert('முதலில் ஒரு அறிக்கையை உருவாக்கவும்');
         return;
     }
-    
+
     // Check if jsPDF is available
     if (!window.jspdf) {
         alert('PDF நூலகம் ஏற்றப்படவில்லை. உங்கள் இணைய இணைப்பை சரிபார்க்கவும் மற்றும் பக்கத்தை புதுப்பிக்கவும்.');
         return;
     }
-    
+
     try {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-    
-    const data = window.currentReportData;
-    const customers = getCustomers();
-    
-    // Title
-    doc.setFontSize(18);
-    doc.text('பால் மேலாண்மை அறிக்கை', 105, 20, { align: 'center' });
-    
-    // Report details
-    doc.setFontSize(12);
-    let y = 35;
-    doc.text(`காலம்: ${formatDate(new Date(data.fromDate))} முதல் ${formatDate(new Date(data.toDate))} வரை`, 20, y);
-    y += 8;
-    doc.text(`மொத்த பால்: ${data.totalQuantity.toFixed(2)} லிட்டர்`, 20, y);
-    y += 8;
-    doc.text(`மொத்த பதிவுகள்: ${data.entries.length}`, 20, y);
-    y += 15;
-    
-    // Customer breakdown
-    if (data.customerId === 'all') {
-        doc.setFontSize(14);
-        doc.text('வாடிக்கையாளர் பிரித்தல்:', 20, y);
+        var jsPDF = window.jspdf.jsPDF;
+        var doc = new jsPDF();
+
+        var data = window.currentReportData;
+        var customers = getCustomers();
+
+        // Title
+        doc.setFontSize(18);
+        doc.text('பால் மேலாண்மை அறிக்கை', 105, 20, { align: 'center' });
+
+        // Report details
+        doc.setFontSize(12);
+        var y = 35;
+
+        doc.text(
+            'காலம்: ' + formatDate(new Date(data.fromDate)) + 
+            ' முதல் ' + formatDate(new Date(data.toDate)) + ' வரை',
+            20, y
+        );
+        y += 8;
+
+        doc.text('மொத்த பால்: ' + data.totalQuantity.toFixed(2) + ' லிட்டர்', 20, y);
+        y += 8;
+
+        doc.text('மொத்த பதிவுகள்: ' + data.entries.length, 20, y);
+        y += 15;
+
+        // Customer breakdown
+        if (data.customerId === 'all') {
+            doc.setFontSize(14);
+            doc.text('வாடிக்கையாளர் பிரித்தல்:', 20, y);
+            y += 10;
+            doc.setFontSize(11);
+
+            Object.keys(data.byCustomer).forEach(function(customerName) {
+                if (y > 270) {
+                    doc.addPage();
+                    y = 20;
+                }
+                doc.text(customerName + ': ' + data.byCustomer[customerName].toFixed(2) + ' L', 25, y);
+                y += 8;
+            });
+        }
+
+        // Daily entries
         y += 10;
-        doc.setFontSize(11);
-        
-        Object.keys(data.byCustomer).forEach(customerName => {
+        if (y > 250) {
+            doc.addPage();
+            y = 20;
+        }
+
+        doc.setFontSize(14);
+        doc.text('தினசரி பதிவுகள்:', 20, y);
+        y += 10;
+
+        doc.setFontSize(10);
+
+        // Group by date
+        var byDate = {};
+        data.entries.forEach(function(entry) {
+            if (!byDate[entry.date]) {
+                byDate[entry.date] = [];
+            }
+            byDate[entry.date].push(entry);
+        });
+
+        Object.keys(byDate).sort().forEach(function(date) {
             if (y > 270) {
                 doc.addPage();
                 y = 20;
             }
-            doc.text(`${customerName}: ${data.byCustomer[customerName].toFixed(2)} L`, 25, y);
-            y += 8;
+
+            var dayTotal = byDate[date].reduce(function(sum, e) {
+                return sum + e.quantity;
+            }, 0);
+
+            var customer;
+
+            if (data.customerId === 'all') {
+                customer = byDate[date].map(function(e) {
+                    var customerObj = customers.find(function(c) {
+                        return c.id === e.customerId;
+                    });
+                    return customerObj ? customerObj.name : 'Unknown';
+                }).join(', ');
+            } else {
+                var customerObj = customers.find(function(c) {
+                    return c.id === data.customerId;
+                });
+                customer = customerObj ? customerObj.name : 'Unknown';
+            }
+
+            var lineText = formatDate(new Date(date)) + ': ' + 
+                           dayTotal.toFixed(2) + ' L';
+
+            if (data.customerId === 'all') {
+                lineText += ' (' + customer + ')';
+            }
+
+            doc.text(lineText, 25, y);
+            y += 7;
         });
-    }
-    
-    // Daily entries
-    y += 10;
-    if (y > 250) {
-        doc.addPage();
-        y = 20;
-    }
-    
-    doc.setFontSize(14);
-    doc.text('தினசரி பதிவுகள்:', 20, y);
-    y += 10;
-    doc.setFontSize(10);
-    
-    // Group by date
-    const byDate = {};
-    data.entries.forEach(entry => {
-        if (!byDate[entry.date]) {
-            byDate[entry.date] = [];
-        }
-        byDate[entry.date].push(entry);
-    });
-    
-    Object.keys(byDate).sort().forEach(date => {
-        if (y > 270) {
-            doc.addPage();
-            y = 20;
-        }
-        const dayTotal = byDate[date].reduce((sum, e) => sum + e.quantity, 0);
-        const customer = data.customerId === 'all' ? 
-            byDate[date].map(e => {
-                const c = customers.find(c => c.id === e.customerId);
-                return c ? c.name : 'Unknown';
-            }).join(', ') : 
-            customers.find(c => c.id === data.customerId)?.name || 'Unknown';
-        
-        doc.text(`${formatDate(new Date(date))}: ${dayTotal.toFixed(2)} L ${data.customerId === 'all' ? `(${customer})` : ''}`, 25, y);
-        y += 7;
-    });
-    
-    doc.save(`dairy-report-${data.fromDate}-to-${data.toDate}.pdf`);
+
+        doc.save('dairy-report-' + data.fromDate + '-to-' + data.toDate + '.pdf');
+
     } catch (error) {
         console.error('Error generating PDF:', error);
-        alert('Error generating PDF. Please try again or check your internet connection.');
+        alert('Error generating PDF. Please try again.');
     }
 }
 
@@ -1014,30 +1023,25 @@ function loadMilkRate() {
 function setDefaultDates() {
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    
-    document.getElementById('report-from-date').value = firstDay.toISOString().split('T')[0];
-    document.getElementById('report-to-date').value = lastDay.toISOString().split('T')[0];
-    
-    const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-    document.getElementById('billing-month').value = currentMonth;
-}
 
-// Data Storage Functions
-function getCustomers() {
-    if (!storageAvailable) {
-        console.warn('Storage not available');
-        return [];
+    // Report dates
+    const reportFrom = document.getElementById('report-from-date');
+    const reportTo = document.getElementById('report-to-date');
+
+    if (reportFrom && reportTo) {
+        reportFrom.value = firstDay.toISOString().split('T')[0];
+        reportTo.value = today.toISOString().split('T')[0];
     }
-    try {
-        const data = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
-        return data ? JSON.parse(data) : [];
-    } catch (e) {
-        console.error('Error reading customers:', e);
-        return [];
+
+    // Billing dates (NEW)
+    const billingFrom = document.getElementById('billing-from-date');
+    const billingTo = document.getElementById('billing-to-date');
+
+    if (billingFrom && billingTo) {
+        billingFrom.value = firstDay.toISOString().split('T')[0];
+        billingTo.value = today.toISOString().split('T')[0];
     }
 }
-
 function saveCustomers(customers) {
     if (!storageAvailable) {
         alert('சேமிப்பு கிடைக்கவில்லை. தரவை சேமிக்க முடியாது.');
@@ -1051,6 +1055,19 @@ function saveCustomers(customers) {
         console.error('Error saving customers:', e);
         alert('தரவை சேமிப்பதில் பிழை. மீண்டும் முயற்சிக்கவும்.');
         return false;
+    }
+}
+function getCustomers() {
+    if (!storageAvailable) {
+        console.warn('Storage not available');
+        return [];
+    }
+    try {
+        const data = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
+        return data ? JSON.parse(data) : [];
+    } catch (e) {
+        console.error('Error reading customers:', e);
+        return [];
     }
 }
 
@@ -1157,6 +1174,10 @@ function showMessage(message, type) {
         }, 300);
     }, 3000);
 }
+document.addEventListener("DOMContentLoaded", function () {
+    initializeApp();
+});
+
 
 // Functions are made available globally in initializeApp()
 
