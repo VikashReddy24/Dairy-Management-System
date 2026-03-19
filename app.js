@@ -765,77 +765,114 @@ function loadBillingCustomers() {
     });
 }
 
-// Generate bill
+// Generate bill (UPDATED FOR DATE RANGE)
 function generateBill() {
     const customerId = document.getElementById('billing-customer-select').value;
-    const monthInput = document.getElementById('billing-month').value;
-    
-    if (!customerId || !monthInput) {
-        alert('வாடிக்கையாளர் மற்றும் மாதத்தைத் தேர்ந்தெடுக்கவும்');
+    const fromDateStr = document.getElementById('billing-from-date').value;
+    const toDateStr = document.getElementById('billing-to-date').value;
+
+    // Validation
+    if (!customerId || !fromDateStr || !toDateStr) {
+        alert('வாடிக்கையாளர் மற்றும் தேதிகளைத் தேர்ந்தெடுக்கவும்');
         return;
     }
-    
+
+    if (new Date(fromDateStr) > new Date(toDateStr)) {
+        alert('தொடக்க தேதி முடிவு தேதிக்குப் பிறகு இருக்க முடியாது');
+        return;
+    }
+
     const customers = getCustomers();
     const customer = customers.find(c => c.id === customerId);
-    
+
     if (!customer) {
         alert('வாடிக்கையாளர் கிடைக்கவில்லை');
         return;
     }
-    
-    // Get month range
-    const [year, month] = monthInput.split('-');
-    const fromDate = new Date(year, month - 1, 1);
-    const toDate = new Date(year, month, 0);
-    
-    const fromDateStr = fromDate.toISOString().split('T')[0];
-    const toDateStr = toDate.toISOString().split('T')[0];
-    
-    // Get entries for this month
+
+    // Get entries in date range
     let entries = getMilkEntries();
     entries = entries.filter(e => 
-        e.customerId === customerId && 
-        e.date >= fromDateStr && 
+        e.customerId === customerId &&
+        e.date >= fromDateStr &&
         e.date <= toDateStr
     );
-    
+
+    if (entries.length === 0) {
+        alert('இந்த தேதிக்குள் எந்த பதிவும் இல்லை');
+        return;
+    }
+
     // Calculate totals
     const totalQuantity = entries.reduce((sum, e) => sum + e.quantity, 0);
     const rate = getMilkRate();
     const totalAmount = totalQuantity * rate;
-    
+
+    // Build table rows
+    let rows = '';
+    entries.forEach(e => {
+        const amount = e.quantity * rate;
+        rows += `
+            <tr>
+                <td>${e.date}</td>
+                <td>${e.quantity.toFixed(2)}</td>
+                <td>₹${rate.toFixed(2)}</td>
+                <td>₹${amount.toFixed(2)}</td>
+            </tr>
+        `;
+    });
+
     // Display bill
     const billContent = document.getElementById('bill-content');
     billContent.innerHTML = `
-        <h3>மாதாந்திர பில்</h3>
+        <h3>பில் விவரம்</h3>
+
         <div class="bill-row">
             <span><strong>வாடிக்கையாளர்:</strong></span>
             <span>${escapeHtml(customer.name)}</span>
         </div>
+
         <div class="bill-row">
-            <span><strong>மாதம்:</strong></span>
-            <span>${formatMonthYear(fromDate)}</span>
+            <span><strong>From:</strong></span>
+            <span>${fromDateStr}</span>
         </div>
+
         <div class="bill-row">
+            <span><strong>To:</strong></span>
+            <span>${toDateStr}</span>
+        </div>
+
+        <table border="1" width="100%" cellpadding="5" style="margin-top:10px;">
+            <tr>
+                <th>தேதி</th>
+                <th>அளவு (லிட்டர்)</th>
+                <th>விலை</th>
+                <th>தொகை</th>
+            </tr>
+            ${rows}
+        </table>
+
+        <div class="bill-row" style="margin-top:10px;">
             <span><strong>மொத்த பால்:</strong></span>
             <span>${totalQuantity.toFixed(2)} லிட்டர்</span>
         </div>
+
         <div class="bill-row">
             <span><strong>லிட்டருக்கு விகிதம்:</strong></span>
             <span>₹${rate.toFixed(2)}</span>
         </div>
+
         <div class="bill-row total">
             <span><strong>மொத்த தொகை:</strong></span>
             <span>₹${totalAmount.toFixed(2)}</span>
         </div>
     `;
-    
+
     document.getElementById('bill-preview').style.display = 'block';
-    
+
     // Store bill data for PDF
     window.currentBillData = {
         customer,
-        month: monthInput,
         fromDate: fromDateStr,
         toDate: toDateStr,
         totalQuantity,
@@ -845,70 +882,73 @@ function generateBill() {
     };
 }
 
-// Download bill PDF
+// Download bill PDF (UPDATED)
 function downloadBillPDF() {
     if (!window.currentBillData) {
         alert('முதலில் ஒரு பில்லை உருவாக்கவும்');
         return;
     }
-    
-    // Check if jsPDF is available
+
     if (!window.jspdf) {
-        alert('PDF நூலகம் ஏற்றப்படவில்லை. உங்கள் இணைய இணைப்பை சரிபார்க்கவும் மற்றும் பக்கத்தை புதுப்பிக்கவும்.');
+        alert('PDF library load ஆகவில்லை');
         return;
     }
-    
+
     try {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
-    
-    const data = window.currentBillData;
-    
-    // Title
-    doc.setFontSize(20);
-    doc.text('பால் மேலாண்மை பில்', 105, 20, { align: 'center' });
-    
-    // Bill details
-    doc.setFontSize(12);
-    let y = 40;
-    doc.text(`வாடிக்கையாளர்: ${data.customer.name}`, 20, y);
-    y += 8;
-    doc.text(`மாதம்: ${formatMonthYear(new Date(data.fromDate))}`, 20, y);
-    y += 15;
-    
-    // Line
-    doc.line(20, y, 190, y);
-    y += 10;
-    
-    // Bill items
-    doc.setFontSize(11);
-    doc.text('மொத்த பால் அளவு:', 20, y);
-    doc.text(`${data.totalQuantity.toFixed(2)} லிட்டர்`, 150, y, { align: 'right' });
-    y += 8;
-    
-    doc.text('லிட்டருக்கு விகிதம்:', 20, y);
-    doc.text(`₹${data.rate.toFixed(2)}`, 150, y, { align: 'right' });
-    y += 10;
-    
-    // Total line
-    doc.line(20, y, 190, y);
-    y += 10;
-    
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    doc.text('மொத்த தொகை:', 20, y);
-    doc.text(`₹${data.totalAmount.toFixed(2)}`, 150, y, { align: 'right' });
-    
-    // Footer
-    y = 270;
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'normal');
-    doc.text('உருவாக்கப்பட்ட தேதி: ' + formatDate(new Date()), 20, y);
-    
-    doc.save(`bill-${data.customer.name.replace(/\s+/g, '-')}-${data.month}.pdf`);
+
+        const data = window.currentBillData;
+
+        // Title
+        doc.setFontSize(20);
+        doc.text('பால் மேலாண்மை பில்', 105, 20, { align: 'center' });
+
+        // Details
+        doc.setFontSize(12);
+        let y = 40;
+
+        doc.text(`வாடிக்கையாளர்: ${data.customer.name}`, 20, y);
+        y += 8;
+
+        doc.text(`From: ${data.fromDate}`, 20, y);
+        y += 8;
+
+        doc.text(`To: ${data.toDate}`, 20, y);
+        y += 15;
+
+        // Line
+        doc.line(20, y, 190, y);
+        y += 10;
+
+        // Entries
+        doc.setFontSize(10);
+        data.entries.forEach(e => {
+            const amount = e.quantity * data.rate;
+            doc.text(`${e.date} | ${e.quantity}L | ₹${amount.toFixed(2)}`, 20, y);
+            y += 6;
+        });
+
+        y += 5;
+        doc.line(20, y, 190, y);
+        y += 10;
+
+        // Total
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text(`மொத்த தொகை: ₹${data.totalAmount.toFixed(2)}`, 20, y);
+
+        // Footer
+        y = 270;
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.text('உருவாக்கப்பட்ட தேதி: ' + formatDate(new Date()), 20, y);
+
+        doc.save(`bill-${data.customer.name.replace(/\s+/g, '-')}.pdf`);
+
     } catch (error) {
-        console.error('Error generating PDF:', error);
-        alert('Error generating PDF. Please try again or check your internet connection.');
+        console.error(error);
+        alert('PDF உருவாக்க பிழை');
     }
 }
 
